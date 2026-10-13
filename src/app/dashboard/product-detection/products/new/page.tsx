@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -11,12 +11,16 @@ import {
   Camera,
   Upload,
   Trash2,
+  RotateCcw,
+  CheckCircle2,
 } from "lucide-react";
 import { createSKU, uploadDatasetImages } from "@/lib/api";
 import { WebcamImageCapture } from "@/components/WebcamImageCapture";
 
 export default function NewProductSkuPage() {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const [skuCode, setSkuCode] = useState("");
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
@@ -25,7 +29,26 @@ export default function NewProductSkuPage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [filePreviews, setFilePreviews] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const handleResetForm = () => {
+    setSkuCode("");
+    setName("");
+    setCategory("");
+    setDescription("");
+    filePreviews.forEach((url) => {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {}
+    });
+    setSelectedFiles([]);
+    setFilePreviews([]);
+    setError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -34,6 +57,7 @@ export default function NewProductSkuPage() {
       setSelectedFiles(combined);
       setFilePreviews(combined.map((f) => URL.createObjectURL(f)));
       setError(null);
+      setSuccessMessage(null);
     }
   };
 
@@ -42,17 +66,28 @@ export default function NewProductSkuPage() {
     setSelectedFiles(combined);
     setFilePreviews(combined.map((f) => URL.createObjectURL(f)));
     setError(null);
+    setSuccessMessage(null);
   };
 
   const removeSelectedFile = (idx: number) => {
+    const targetUrl = filePreviews[idx];
+    if (targetUrl) {
+      try {
+        URL.revokeObjectURL(targetUrl);
+      } catch {}
+    }
     const updated = selectedFiles.filter((_, i) => i !== idx);
     setSelectedFiles(updated);
     setFilePreviews(updated.map((f) => URL.createObjectURL(f)));
+    if (updated.length === 0 && fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, stayOnPage = false) => {
     e.preventDefault();
     setError(null);
+    setSuccessMessage(null);
     setSubmitting(true);
     try {
       const created = await createSKU({
@@ -66,7 +101,13 @@ export default function NewProductSkuPage() {
         await uploadDatasetImages(selectedFiles, created.id, "reference");
       }
 
-      router.push(`/dashboard/product-detection/products/${created.id}`);
+      handleResetForm();
+
+      if (stayOnPage) {
+        setSuccessMessage(`Successfully registered SKU "${created.sku_code}". All form inputs have been reset for your next product.`);
+      } else {
+        router.push(`/dashboard/product-detection/products/${created.id}`);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -107,7 +148,17 @@ export default function NewProductSkuPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+        {successMessage && (
+          <div className="rounded-xl border border-emerald-800/60 bg-emerald-950/50 p-3.5 text-xs text-emerald-300 flex items-start space-x-2.5">
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400 mt-0.5" />
+            <div className="flex-1">
+              <span className="font-semibold block">Registration Successful</span>
+              <span>{successMessage}</span>
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-4 text-xs">
           <div>
             <label className="block text-slate-300 font-semibold mb-1">
               Unique SKU Code <span className="text-rose-400">*</span>
@@ -217,6 +268,7 @@ export default function NewProductSkuPage() {
             ) : (
               <div className="relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-700 bg-slate-950/60 p-6 text-center hover:border-cyan-500 transition-colors">
                 <input
+                  ref={fileInputRef}
                   type="file"
                   multiple
                   accept="image/jpeg,image/png,image/webp"
@@ -254,21 +306,41 @@ export default function NewProductSkuPage() {
             )}
           </div>
 
-          <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-800">
-            <Link
-              href="/dashboard/product-detection/products"
-              className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 font-medium text-slate-300 hover:bg-slate-700 transition-colors"
-            >
-              Cancel
-            </Link>
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800">
             <button
-              type="submit"
-              disabled={submitting || !skuCode.trim() || !name.trim()}
-              className="flex items-center space-x-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-2.5 font-bold text-white shadow-md shadow-cyan-500/25 hover:opacity-95 disabled:opacity-40 transition-all"
+              type="button"
+              onClick={handleResetForm}
+              className="flex items-center space-x-1.5 rounded-xl border border-slate-700 bg-slate-800/80 px-3.5 py-2 font-medium text-slate-300 hover:bg-slate-700 transition-colors"
             >
-              <Plus className="h-4 w-4" />
-              <span>{submitting ? "Registering..." : "Create Product SKU"}</span>
+              <RotateCcw className="h-3.5 w-3.5 text-slate-400" />
+              <span>Reset Form</span>
             </button>
+
+            <div className="flex items-center space-x-2.5">
+              <Link
+                href="/dashboard/product-detection/products"
+                className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 font-medium text-slate-300 hover:bg-slate-700 transition-colors"
+              >
+                Cancel
+              </Link>
+              <button
+                type="button"
+                onClick={(e) => handleSubmit(e, true)}
+                disabled={submitting || !skuCode.trim() || !name.trim()}
+                className="flex items-center space-x-1.5 rounded-xl border border-cyan-500/50 bg-cyan-950/40 px-4 py-2 font-semibold text-cyan-300 hover:bg-cyan-900/40 disabled:opacity-40 transition-all"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Save & Add Another</span>
+              </button>
+              <button
+                type="submit"
+                disabled={submitting || !skuCode.trim() || !name.trim()}
+                className="flex items-center space-x-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-2 font-bold text-white shadow-md shadow-cyan-500/25 hover:opacity-95 disabled:opacity-40 transition-all"
+              >
+                <Plus className="h-4 w-4" />
+                <span>{submitting ? "Registering..." : "Create Product SKU"}</span>
+              </button>
+            </div>
           </div>
         </form>
       </div>

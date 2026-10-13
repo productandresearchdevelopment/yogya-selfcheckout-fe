@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -45,6 +45,7 @@ function ProductSkuDetailContent() {
   const [submittingEdit, setSubmittingEdit] = useState(false);
 
   // Upload Modal State
+  const uploadFileInputRef = useRef<HTMLInputElement | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [uploadRole, setUploadRole] = useState<"reference" | "training">("reference");
   const [uploadSource, setUploadSource] = useState<"upload" | "webcam">("upload");
@@ -128,18 +129,35 @@ function ProductSkuDetailContent() {
   };
 
   const removeSelectedFile = (idx: number) => {
+    const targetUrl = filePreviews[idx];
+    if (targetUrl) {
+      try {
+        URL.revokeObjectURL(targetUrl);
+      } catch {}
+    }
     const updated = selectedFiles.filter((_, i) => i !== idx);
     setSelectedFiles(updated);
-    setFilePreviews(updated.map((f) => URL.createObjectURL(f)));
+    setFilePreviews(filePreviews.filter((_, i) => i !== idx));
+    if (updated.length === 0 && uploadFileInputRef.current) {
+      uploadFileInputRef.current.value = "";
+    }
   };
 
   const resetUploadModal = () => {
+    filePreviews.forEach((url) => {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {}
+    });
     setIsUploadOpen(false);
     setSelectedFiles([]);
     setFilePreviews([]);
     setUploadSource("upload");
     setUploadError(null);
     setUploadSuccess(null);
+    if (uploadFileInputRef.current) {
+      uploadFileInputRef.current.value = "";
+    }
   };
 
   const handleUploadSubmit = async (e: React.FormEvent) => {
@@ -154,9 +172,17 @@ function ProductSkuDetailContent() {
     try {
       const res = await uploadDatasetImages(selectedFiles, sku.id, uploadRole);
       setUploadSuccess(`Successfully saved ${res.length} image(s).`);
+      filePreviews.forEach((url) => {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {}
+      });
       setSelectedFiles([]);
       setFilePreviews([]);
       setUploadSource("upload");
+      if (uploadFileInputRef.current) {
+        uploadFileInputRef.current.value = "";
+      }
       await loadData();
       setTimeout(() => {
         setIsUploadOpen(false);
@@ -547,6 +573,7 @@ function ProductSkuDetailContent() {
                 {uploadSource === "upload" ? (
                   <div className="relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-700 bg-slate-950/60 p-5 text-center hover:border-cyan-500 transition-colors">
                     <input
+                      ref={uploadFileInputRef}
                       type="file"
                       multiple
                       accept="image/jpeg,image/png,image/webp"

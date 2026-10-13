@@ -103,10 +103,11 @@ export interface DetectedObject {
   px_height: number;
   detector_confidence: number;
   detector_class: string;
+  crop_provenance?: "detector_roi" | "adaptive_saliency_roi" | "fallback_full_frame";
   is_fallback: boolean;
   crop_image_url?: string | null;
   is_unknown: boolean;
-  recognition_status?: "KNOWN" | "UNKNOWN" | "UNCLASSIFIED";
+  recognition_status?: "KNOWN" | "UNKNOWN" | "AMBIGUOUS" | "NO_OBJECTS_DETECTED" | "UNCLASSIFIED";
   predicted_sku?: string | null;
   predicted_sku_name?: string | null;
   top_similarity_score?: number | null;

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Package,
   Plus,
@@ -16,6 +16,7 @@ import {
   X,
   ChevronRight,
   Camera,
+  RotateCcw,
 } from "lucide-react";
 import {
   SKU,
@@ -57,14 +58,52 @@ export const SkuManagementView: React.FC = () => {
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
 
   // Create SKU Modal Image Attachment States
+  const createFileInputRef = useRef<HTMLInputElement | null>(null);
   const [createImageSource, setCreateImageSource] = useState<"upload" | "webcam">("upload");
   const [createFiles, setCreateFiles] = useState<File[]>([]);
   const [createPreviews, setCreatePreviews] = useState<string[]>([]);
 
   // Upload Modal Image Attachment States
+  const uploadFileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadImageSource, setUploadImageSource] = useState<"upload" | "webcam">("upload");
   const [uploadFilesList, setUploadFilesList] = useState<File[]>([]);
   const [uploadPreviews, setUploadPreviews] = useState<string[]>([]);
+
+  const resetCreateForm = () => {
+    setFormSkuCode("");
+    setFormName("");
+    setFormCategory("");
+    setFormDesc("");
+    setFormError(null);
+    createPreviews.forEach((url) => {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {}
+    });
+    setCreateFiles([]);
+    setCreatePreviews([]);
+    setCreateImageSource("upload");
+    if (createFileInputRef.current) {
+      createFileInputRef.current.value = "";
+    }
+  };
+
+  const resetUploadForm = () => {
+    setUploadError(null);
+    setUploadSuccess(null);
+    setUploadFiles(null);
+    uploadPreviews.forEach((url) => {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {}
+    });
+    setUploadFilesList([]);
+    setUploadPreviews([]);
+    setUploadImageSource("upload");
+    if (uploadFileInputRef.current) {
+      uploadFileInputRef.current.value = "";
+    }
+  };
 
   const loadSkus = async () => {
     setLoading(true);
@@ -105,11 +144,18 @@ export const SkuManagementView: React.FC = () => {
   };
 
   const handleRemoveCreateFile = (idx: number) => {
-    setCreateFiles((prev) => prev.filter((_, i) => i !== idx));
-    setCreatePreviews((prev) => {
-      URL.revokeObjectURL(prev[idx]);
-      return prev.filter((_, i) => i !== idx);
-    });
+    const targetUrl = createPreviews[idx];
+    if (targetUrl) {
+      try {
+        URL.revokeObjectURL(targetUrl);
+      } catch {}
+    }
+    const updated = createFiles.filter((_, i) => i !== idx);
+    setCreateFiles(updated);
+    setCreatePreviews((prev) => prev.filter((_, i) => i !== idx));
+    if (updated.length === 0 && createFileInputRef.current) {
+      createFileInputRef.current.value = "";
+    }
   };
 
   const handleCreateFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -126,11 +172,18 @@ export const SkuManagementView: React.FC = () => {
   };
 
   const handleRemoveUploadFile = (idx: number) => {
-    setUploadFilesList((prev) => prev.filter((_, i) => i !== idx));
-    setUploadPreviews((prev) => {
-      URL.revokeObjectURL(prev[idx]);
-      return prev.filter((_, i) => i !== idx);
-    });
+    const targetUrl = uploadPreviews[idx];
+    if (targetUrl) {
+      try {
+        URL.revokeObjectURL(targetUrl);
+      } catch {}
+    }
+    const updated = uploadFilesList.filter((_, i) => i !== idx);
+    setUploadFilesList(updated);
+    setUploadPreviews((prev) => prev.filter((_, i) => i !== idx));
+    if (updated.length === 0 && uploadFileInputRef.current) {
+      uploadFileInputRef.current.value = "";
+    }
   };
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
@@ -139,10 +192,10 @@ export const SkuManagementView: React.FC = () => {
     setSubmitting(true);
     try {
       const created = await createSKU({
-        sku_code: formSkuCode,
-        name: formName,
-        category: formCategory || undefined,
-        description: formDesc || undefined,
+        sku_code: formSkuCode.trim().toUpperCase(),
+        name: formName.trim(),
+        category: formCategory.trim() || undefined,
+        description: formDesc.trim() || undefined,
       });
 
       // Save and index any captured or uploaded reference images into active gallery
@@ -150,13 +203,8 @@ export const SkuManagementView: React.FC = () => {
         await uploadDatasetImages(createFiles, created.id, "reference");
       }
 
+      resetCreateForm();
       setIsCreateOpen(false);
-      setFormSkuCode("");
-      setFormName("");
-      setFormCategory("");
-      setFormDesc("");
-      setCreateFiles([]);
-      setCreatePreviews([]);
       await loadSkus();
       const updated = await getSKU(created.id);
       setSelectedSku(updated);
@@ -226,9 +274,7 @@ export const SkuManagementView: React.FC = () => {
     try {
       const res = await uploadDatasetImages(allFiles, selectedSku.id, uploadRole);
       setUploadSuccess(`Uploaded and indexed ${res.length} images successfully.`);
-      setUploadFiles(null);
-      setUploadFilesList([]);
-      setUploadPreviews([]);
+      resetUploadForm();
       await loadSkus();
       const updatedSku = await getSKU(selectedSku.id);
       setSelectedSku(updatedSku);
@@ -259,11 +305,7 @@ export const SkuManagementView: React.FC = () => {
 
         <button
           onClick={() => {
-            setFormError(null);
-            setFormSkuCode("");
-            setFormName("");
-            setFormCategory("");
-            setFormDesc("");
+            resetCreateForm();
             setIsCreateOpen(true);
           }}
           className="flex items-center space-x-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-cyan-500/20 hover:opacity-95"
@@ -314,7 +356,10 @@ export const SkuManagementView: React.FC = () => {
               <Package className="h-8 w-8 text-slate-600 mx-auto" />
               <p className="text-xs text-slate-400">No SKU records found matching your filters.</p>
               <button
-                onClick={() => setIsCreateOpen(true)}
+                onClick={() => {
+                  resetCreateForm();
+                  setIsCreateOpen(true);
+                }}
                 className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold"
               >
                 + Register First SKU
@@ -441,9 +486,7 @@ export const SkuManagementView: React.FC = () => {
                 </span>
                 <button
                   onClick={() => {
-                    setUploadError(null);
-                    setUploadSuccess(null);
-                    setUploadFiles(null);
+                    resetUploadForm();
                     setIsUploadOpen(true);
                   }}
                   className="flex items-center space-x-1.5 rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-cyan-500 shadow-sm shadow-cyan-600/30"
@@ -572,9 +615,8 @@ export const SkuManagementView: React.FC = () => {
               </h3>
               <button
                 onClick={() => {
+                  resetCreateForm();
                   setIsCreateOpen(false);
-                  setCreateFiles([]);
-                  setCreatePreviews([]);
                 }}
                 className="text-slate-400 hover:text-white"
               >
@@ -691,6 +733,7 @@ export const SkuManagementView: React.FC = () => {
                 {createImageSource === "upload" && (
                   <div className="space-y-1">
                     <input
+                      ref={createFileInputRef}
                       type="file"
                       multiple
                       accept="image/jpeg,image/png,image/webp"
@@ -735,25 +778,35 @@ export const SkuManagementView: React.FC = () => {
                 )}
               </div>
 
-              <div className="flex justify-end space-x-2 pt-2 border-t border-slate-800">
+              <div className="flex items-center justify-between pt-2 border-t border-slate-800">
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsCreateOpen(false);
-                    setCreateFiles([]);
-                    setCreatePreviews([]);
-                  }}
-                  className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-slate-300 hover:bg-slate-700"
+                  onClick={resetCreateForm}
+                  className="flex items-center space-x-1.5 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-slate-700 transition-colors"
                 >
-                  Cancel
+                  <RotateCcw className="h-3.5 w-3.5 text-slate-400" />
+                  <span>Reset Form</span>
                 </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="rounded-lg bg-cyan-600 px-4 py-2 font-semibold text-white hover:bg-cyan-500 disabled:opacity-50"
-                >
-                  {submitting ? "Registering & Indexing..." : "Register & Process SKU"}
-                </button>
+
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetCreateForm();
+                      setIsCreateOpen(false);
+                    }}
+                    className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-slate-300 hover:bg-slate-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="rounded-lg bg-cyan-600 px-4 py-2 font-semibold text-white hover:bg-cyan-500 disabled:opacity-50"
+                  >
+                    {submitting ? "Registering & Indexing..." : "Register & Process SKU"}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -838,10 +891,8 @@ export const SkuManagementView: React.FC = () => {
               </h3>
               <button
                 onClick={() => {
+                  resetUploadForm();
                   setIsUploadOpen(false);
-                  setUploadFiles(null);
-                  setUploadFilesList([]);
-                  setUploadPreviews([]);
                 }}
                 className="text-slate-400 hover:text-white"
               >
@@ -929,6 +980,7 @@ export const SkuManagementView: React.FC = () => {
                 {uploadImageSource === "upload" && (
                   <div className="space-y-1">
                     <input
+                      ref={uploadFileInputRef}
                       type="file"
                       multiple
                       accept="image/jpeg,image/png,image/webp"
@@ -983,10 +1035,8 @@ export const SkuManagementView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
+                    resetUploadForm();
                     setIsUploadOpen(false);
-                    setUploadFiles(null);
-                    setUploadFilesList([]);
-                    setUploadPreviews([]);
                   }}
                   className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-slate-300 hover:bg-slate-700"
                 >

@@ -25,6 +25,7 @@ import {
   X,
   Layers,
   Search,
+  RotateCcw,
 } from "lucide-react";
 import {
   RecognitionResult,
@@ -101,6 +102,7 @@ export const RecognitionPlaygroundView: React.FC = () => {
   const staticImageRef = useRef<HTMLImageElement | null>(null);
 
   // Few-Shot SKU Enrollment Modal State
+  const enrollFileInputRef = useRef<HTMLInputElement | null>(null);
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState<boolean>(false);
   const [enrollSkuCode, setEnrollSkuCode] = useState<string>("");
   const [enrollName, setEnrollName] = useState<string>("");
@@ -112,6 +114,28 @@ export const RecognitionPlaygroundView: React.FC = () => {
   const [isEnrolling, setIsEnrolling] = useState<boolean>(false);
   const [enrollSuccess, setEnrollSuccess] = useState<string | null>(null);
   const [enrollError, setEnrollError] = useState<string | null>(null);
+
+  const resetEnrollForm = (keepSuccessMessage = false) => {
+    setEnrollSkuCode("");
+    setEnrollName("");
+    setEnrollCategory("");
+    setEnrollDescription("");
+    enrollPreviews.forEach((url) => {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {}
+    });
+    setEnrollFiles([]);
+    setEnrollPreviews([]);
+    setEnrollImageSource("upload");
+    setEnrollError(null);
+    if (!keepSuccessMessage) {
+      setEnrollSuccess(null);
+    }
+    if (enrollFileInputRef.current) {
+      enrollFileInputRef.current.value = "";
+    }
+  };
 
   // 1. Fetch System & Model Registry Status
   const fetchStatus = useCallback(async () => {
@@ -662,15 +686,9 @@ export const RecognitionPlaygroundView: React.FC = () => {
 
     try {
       const res: FewShotEnrollmentResponse = await enrollFewShotSku(formData);
+      // Cleanly reset all input fields and DOM input while retaining success message
+      resetEnrollForm(true);
       setEnrollSuccess(res.message);
-      // Reset form
-      setEnrollSkuCode("");
-      setEnrollName("");
-      setEnrollCategory("");
-      setEnrollDescription("");
-      setEnrollFiles([]);
-      setEnrollPreviews([]);
-      setEnrollImageSource("upload");
       // Refresh status so reference count updates
       await fetchStatus();
     } catch (err: any) {
@@ -698,9 +716,8 @@ export const RecognitionPlaygroundView: React.FC = () => {
         <div className="flex items-center space-x-3">
           <button
             onClick={() => {
+              resetEnrollForm(false);
               setIsEnrollModalOpen(true);
-              setEnrollError(null);
-              setEnrollSuccess(null);
             }}
             className="flex items-center space-x-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-3.5 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-500/20 hover:opacity-95 transition-all"
           >
@@ -1388,7 +1405,10 @@ export const RecognitionPlaygroundView: React.FC = () => {
                 </p>
               </div>
               <button
-                onClick={() => setIsEnrollModalOpen(false)}
+                onClick={() => {
+                  setIsEnrollModalOpen(false);
+                  resetEnrollForm(false);
+                }}
                 className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
               >
                 <X className="h-5 w-5" />
@@ -1485,6 +1505,7 @@ export const RecognitionPlaygroundView: React.FC = () => {
                 {enrollImageSource === "upload" ? (
                   <div className="relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-700 bg-slate-950/60 p-5 text-center hover:border-emerald-500 transition-colors">
                     <input
+                      ref={enrollFileInputRef}
                       type="file"
                       multiple
                       accept="image/jpeg,image/png,image/webp"
@@ -1530,29 +1551,55 @@ export const RecognitionPlaygroundView: React.FC = () => {
               )}
 
               {enrollSuccess && (
-                <div className="rounded-xl border border-emerald-800/80 bg-emerald-950/50 p-3 text-xs text-emerald-300 flex items-start space-x-2">
-                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400 mt-0.5" />
-                  <span>{enrollSuccess}</span>
+                <div className="rounded-xl border border-emerald-800/80 bg-emerald-950/50 p-3.5 text-xs text-emerald-300 space-y-2.5">
+                  <div className="flex items-start space-x-2">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400 mt-0.5" />
+                    <span>{enrollSuccess}</span>
+                  </div>
+                  <div className="pt-1 flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => resetEnrollForm(false)}
+                      className="inline-flex items-center space-x-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-all"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Enroll Another SKU</span>
+                    </button>
+                  </div>
                 </div>
               )}
 
               {/* Submit Buttons */}
-              <div className="flex justify-end space-x-3 pt-2 border-t border-slate-800">
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setIsEnrollModalOpen(false)}
-                  className="rounded-xl border border-slate-800 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800"
+                  onClick={() => resetEnrollForm(false)}
+                  className="flex items-center space-x-1.5 rounded-xl border border-slate-700 bg-slate-800/80 px-3.5 py-2 font-medium text-slate-300 hover:bg-slate-700 transition-colors"
                 >
-                  Close
+                  <RotateCcw className="h-3.5 w-3.5 text-slate-400" />
+                  <span>Reset Form</span>
                 </button>
-                <button
-                  type="submit"
-                  disabled={isEnrolling || enrollFiles.length === 0}
-                  className="flex items-center space-x-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-500/20 hover:opacity-95 disabled:opacity-40 transition-all"
-                >
-                  <Sparkles className={`h-4 w-4 ${isEnrolling ? "animate-spin" : ""}`} />
-                  <span>{isEnrolling ? "Indexing Embeddings..." : "Enroll SKU into Gallery"}</span>
-                </button>
+
+                <div className="flex items-center space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEnrollModalOpen(false);
+                      resetEnrollForm(false);
+                    }}
+                    className="rounded-xl border border-slate-800 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800"
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isEnrolling || enrollFiles.length === 0}
+                    className="flex items-center space-x-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-500/20 hover:opacity-95 disabled:opacity-40 transition-all"
+                  >
+                    <Sparkles className={`h-4 w-4 ${isEnrolling ? "animate-spin" : ""}`} />
+                    <span>{isEnrolling ? "Indexing Embeddings..." : "Enroll SKU into Gallery"}</span>
+                  </button>
+                </div>
               </div>
             </form>
           </div>

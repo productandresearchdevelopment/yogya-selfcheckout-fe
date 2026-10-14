@@ -353,23 +353,15 @@ export default function TrainingModelsPage() {
                 </div>
               </div>
 
-              {/* Sample seeder utility */}
-              <button
-                onClick={handleSeedSamples}
-                disabled={isSeeding}
-                className="flex items-center space-x-1.5 rounded-xl border border-cyan-500/30 bg-cyan-950/60 px-4 py-2.5 text-xs font-semibold text-cyan-300 hover:bg-cyan-900/60 disabled:opacity-50 shrink-0"
-              >
-                <Sparkles className={`h-4 w-4 ${isSeeding ? "animate-spin" : ""}`} />
-                <span>{isSeeding ? "Generating..." : "Generate Train/Val Augmentations"}</span>
-              </button>
-            </div>
-
-            {seedMessage && (
-              <div className="mt-4 rounded-xl bg-slate-900/80 p-3 text-xs text-cyan-300 border border-slate-800">
-                {seedMessage}
+              {/* Sample seeder utility disabled */}
+              <div className="flex items-center space-x-1.5 rounded-xl border border-slate-700/50 bg-slate-800/40 px-3 py-2 text-xs text-slate-400 shrink-0">
+                <Sparkles className="h-3.5 w-3.5 text-cyan-400" />
+                <span>Few-Shot Zero Retraining (DINOv3 Active)</span>
               </div>
-            )}
+            </div>
           </div>
+
+
 
           {/* Blockers & Recommendations List */}
           {readiness && readiness.blockers.length > 0 && (
